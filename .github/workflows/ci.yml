@@ -1,0 +1,45 @@
+# Integração contínua: a cada push ou pull request, confere o código, roda os testes e gera o build.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # O .npmrc tem ignore-scripts=true: o SQLite usa os binários que já vêm no pacote.
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tipos (TypeScript)
+        run: npm run typecheck
+
+      - name: Testes automatizados
+        run: npm test
+
+      - name: Build de produção
+        run: npm run build
+        env:
+          AUTH_SECRET: segredo-apenas-para-o-build-do-ci
+
+      - name: Backup do banco (teste do script)
+        run: |
+          node -e "import('./lib/banco.ts').then(({ abrirArquivo }) => abrirArquivo('data/pulso.db').close())"
+          npm run db:backup
