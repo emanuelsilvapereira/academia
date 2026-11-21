@@ -172,6 +172,9 @@ docs/                    modelo do banco e roteiro da apresentação
 ## Limitações conhecidas
 
 - O banco é um arquivo local, pensado para demonstração e uso de uma academia pequena (não para muitos acessos simultâneos).
+- **Na Vercel** o banco fica em `/tmp` (a única pasta com escrita) e volta aos dados de demonstração sempre que a
+  função reinicia. Serve para mostrar o sistema; para guardar dados de verdade seria preciso um banco hospedado
+  (ex.: Turso, Neon). Defina `AUTH_SECRET` nas variáveis de ambiente do projeto na Vercel.
 - Pagamentos são registrados manualmente (não há integração com banco, Pix ou cartão).
 - O check-in pela câmera depende do navegador ter `BarcodeDetector`.
 - O "desfazer" vale por 5 minutos depois da exclusão.
