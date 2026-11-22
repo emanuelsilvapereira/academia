@@ -23,7 +23,9 @@ export type Permissao =
   | "usuarios.gerenciar"
   | "auditoria.ver"
   | "config.editar" // capacidade da academia
-  | "relatorios.exportar";
+  | "relatorios.exportar"
+  | "aulas.editar" // grade de aulas coletivas
+  | "avisos.editar"; // avisos do portal do aluno
 
 // Todos os perfis podem VER alunos, planos, instrutores, treinos e exercícios.
 const MATRIZ: Record<Perfil, Permissao[]> = {
@@ -41,9 +43,11 @@ const MATRIZ: Record<Perfil, Permissao[]> = {
     "auditoria.ver",
     "config.editar",
     "relatorios.exportar",
+    "aulas.editar",
+    "avisos.editar",
   ],
-  recepcao: ["alunos.editar", "financeiro.ver", "financeiro.editar", "frequencia.registrar", "relatorios.exportar"],
-  instrutor: ["frequencia.registrar", "treinos.editar", "exercicios.editar", "avaliacoes.editar"],
+  recepcao: ["alunos.editar", "financeiro.ver", "financeiro.editar", "frequencia.registrar", "relatorios.exportar", "aulas.editar", "avisos.editar"],
+  instrutor: ["frequencia.registrar", "treinos.editar", "exercicios.editar", "avaliacoes.editar", "aulas.editar"],
 };
 
 export function pode(perfil: string, permissao: Permissao): boolean {
@@ -62,8 +66,10 @@ export const DESCRICAO_PERMISSAO: Record<Permissao, string> = {
   "instrutores.editar": "Cadastrar instrutores",
   "usuarios.gerenciar": "Gerenciar usuários e perfis",
   "auditoria.ver": "Ver o log de auditoria",
-  "config.editar": "Alterar a capacidade da academia",
+  "config.editar": "Alterar a capacidade da academia e o Pix",
   "relatorios.exportar": "Exportar relatórios (CSV/PDF)",
+  "aulas.editar": "Montar a grade de aulas coletivas",
+  "avisos.editar": "Publicar avisos no portal do aluno",
 };
 
 export function permissoesDo(perfil: Perfil): Permissao[] {

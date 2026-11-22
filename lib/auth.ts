@@ -12,7 +12,8 @@ function segredo(): string {
   return process.env.AUTH_SECRET || "segredo-somente-para-desenvolvimento-local";
 }
 
-function assinar(conteudo: string): string {
+/** Assinatura HMAC usada nos cookies de sessão (equipe e portal do aluno). */
+export function assinar(conteudo: string): string {
   return createHmac("sha256", segredo()).update(conteudo).digest("hex");
 }
 

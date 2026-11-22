@@ -5,11 +5,12 @@ import { exigirUsuario } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { decimal, formatarData, GRUPO_ROTULO } from "@/lib/format";
 import { pode } from "@/lib/permissoes";
-import { adicionarExercicio, criarFicha, excluirFicha, moverExercicio, removerExercicio } from "./actions";
-import { AdicionarExercicioForm, BotoesOrdem, NovaFichaForm } from "./formularios";
+import { DIAS_LONGOS, lerDias } from "@/lib/rotina";
+import { adicionarExercicio, criarFicha, definirDiasFicha, excluirFicha, moverExercicio, removerExercicio } from "./actions";
+import { AdicionarExercicioForm, BotoesOrdem, DiasFichaForm, NovaFichaForm } from "./formularios";
 
-type Ficha = { id: number; letra: string; objetivo: string; atualizada_em: string; instrutor_nome: string | null };
-type Item = { id: number; ficha_id: number; nome: string; grupo: string; equipamento: string; series: number; repeticoes: string; carga_kg: number | null; descanso_seg: number | null };
+type Ficha = { id: number; letra: string; objetivo: string; atualizada_em: string; dias: string; instrutor_nome: string | null };
+type Item = { id: number; ficha_id: number; exercicio_id: number; nome: string; grupo: string; equipamento: string; series: number; repeticoes: string; carga_kg: number | null; descanso_seg: number | null; ultima_carga: number | null; ultima_data: string | null };
 
 export default async function TreinoPage({ params }: { params: Promise<{ id: string }> }) {
   const usuario = await exigirUsuario();
@@ -26,13 +27,15 @@ export default async function TreinoPage({ params }: { params: Promise<{ id: str
   const editar = pode(usuario.perfil, "treinos.editar");
   const fichas = db
     .prepare(
-      `SELECT f.id, f.letra, f.objetivo, f.atualizada_em, i.nome AS instrutor_nome
+      `SELECT f.id, f.letra, f.objetivo, f.atualizada_em, f.dias, i.nome AS instrutor_nome
        FROM ficha f LEFT JOIN instrutor i ON i.id = f.instrutor_id WHERE f.aluno_id = ? ORDER BY f.letra`,
     )
     .all(alunoId) as Ficha[];
   const itens = db
     .prepare(
-      `SELECT fi.id, fi.ficha_id, e.nome, e.grupo, e.equipamento, fi.series, fi.repeticoes, fi.carga_kg, fi.descanso_seg
+      `SELECT fi.id, fi.ficha_id, fi.exercicio_id, e.nome, e.grupo, e.equipamento, fi.series, fi.repeticoes, fi.carga_kg, fi.descanso_seg,
+              (SELECT c.carga_kg FROM carga_registro c WHERE c.aluno_id = f.aluno_id AND c.exercicio_id = e.id ORDER BY c.data DESC LIMIT 1) AS ultima_carga,
+              (SELECT MAX(c.data) FROM carga_registro c WHERE c.aluno_id = f.aluno_id AND c.exercicio_id = e.id) AS ultima_data
        FROM ficha_item fi JOIN ficha f ON f.id = fi.ficha_id JOIN exercicio e ON e.id = fi.exercicio_id
        WHERE f.aluno_id = ? ORDER BY fi.ordem`,
     )
@@ -91,6 +94,11 @@ export default async function TreinoPage({ params }: { params: Promise<{ id: str
                   {f.instrutor_nome ? ` por ${f.instrutor_nome}` : ""} · {daFicha.length} exercícios ·{" "}
                   {[...new Set(daFicha.map((i) => GRUPO_ROTULO[i.grupo]))].join(", ") || "sem exercícios"}
                 </p>
+                {editar ? (
+                  <DiasFichaForm acao={definirDiasFicha.bind(null, aluno.id, f.id)} dias={lerDias(f.dias)} prefixo={`f${f.id}`} />
+                ) : (
+                  <p className="muted small">Dias: {lerDias(f.dias).map((d) => DIAS_LONGOS[d]).join(", ") || "sem dia fixo"}</p>
+                )}
               </div>
               {editar ? <BotaoExcluir acao={excluirFicha.bind(null, aluno.id, f.id)} nome={`a ficha ${f.letra}`} detalhe="Os exercícios dela também saem." /> : null}
             </div>
@@ -126,7 +134,9 @@ export default async function TreinoPage({ params }: { params: Promise<{ id: str
                         </td>
                         <td data-label="Exercício">
                           <span>
-                            <span className="name">{i.nome}</span>
+                            <Link href={`/exercicios/${i.exercicio_id}`} className="name sublinhado-hover">
+                              {i.nome}
+                            </Link>
                             <span className="sub">
                               {GRUPO_ROTULO[i.grupo]} · {i.equipamento}
                             </span>
@@ -135,7 +145,14 @@ export default async function TreinoPage({ params }: { params: Promise<{ id: str
                         <td data-label="Séries × reps" className="mono">
                           {i.series} × {i.repeticoes}
                         </td>
-                        <td data-label="Carga">{i.carga_kg !== null ? `${decimal(i.carga_kg)} kg` : "—"}</td>
+                        <td data-label="Carga">
+                          {i.carga_kg !== null ? `${decimal(i.carga_kg)} kg` : "—"}
+                          {i.ultima_carga !== null ? (
+                            <span className="sub">
+                              aluno anotou {decimal(i.ultima_carga)} kg em {formatarData(i.ultima_data)}
+                            </span>
+                          ) : null}
+                        </td>
                         <td data-label="Descanso">{i.descanso_seg !== null ? `${i.descanso_seg} s` : "—"}</td>
                         {editar ? (
                           <td className="actions">

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { usuarioAtual } from "@/lib/auth";
@@ -33,6 +34,9 @@ export default async function LoginPage() {
           <p className="mono">recepcao@pulso.com / recepcao123 · Recepção</p>
           <p className="mono">instrutor@pulso.com / instrutor123 · Instrutor</p>
         </div>
+        <p className="login-links muted small">
+          É aluno da academia? <Link href="/aluno/entrar">Entrar na área do aluno</Link>
+        </p>
       </section>
     </main>
   );

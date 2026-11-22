@@ -30,11 +30,16 @@ O documento pede **um fluxo do início ao fim, com uma operação que grava no b
 11. **Auditoria**: mostre que todas as ações acima (inclusive o login errado e a exportação) estão registradas.
 12. **Perfis de acesso**: saia e entre com `instrutor@pulso.com` / `instrutor123`. O menu fica menor, ele não vê
     pagamentos e o Financeiro mostra "Sem permissão".
-13. **Mostre o banco**: abra `data/pulso.db` no *DB Browser for SQLite* (gratuito) e mostre as tabelas.
-14. **Qualidade**: mostre `npm test` passando e a aba **Actions** do GitHub com o CI verde.
-15. **Tema e celular**: troque o tema (sol/lua) e reduza a janela para mostrar o layout responsivo.
+13. **Portal do aluno**: abra `/aluno/entrar` (de preferência no celular ou com a janela estreita) e entre com o aluno
+    de demonstração que aparece na tela. Mostre o treino de hoje, a rotina da semana, toque em "Concluí a ficha",
+    abra um exercício (vídeo, passo a passo, mapa dos músculos e anote a carga), reserve uma aula em "Aulas",
+    abra uma parcela em "Mensalidade" para mostrar o QR code do Pix e a carteirinha. Se estiver no celular, mostre o
+    botão "Instalar".
+14. **Mostre o banco**: abra `data/pulso.db` no *DB Browser for SQLite* (gratuito) e mostre as tabelas.
+15. **Qualidade**: mostre `npm test` passando e a aba **Actions** do GitHub com o CI verde.
+16. **Tema e celular**: troque o tema (sol/lua) e reduza a janela para mostrar o layout responsivo.
 
-Se o tempo for curto, faça 1, 3, 4, 5, 7, 9 e 12.
+Se o tempo for curto, faça 1, 3, 4, 5, 7, 9, 12 e 13.
 
 ## Perguntas que a professora pode fazer (respostas curtas)
 
@@ -63,6 +68,18 @@ Se o tempo for curto, faça 1, 3, 4, 5, 7, 9 e 12.
 - **Onde fica a validação?** No servidor (nas *Server Actions*). O banco ainda tem `CHECK` e `UNIQUE` como segunda proteção.
 - **Como funciona o desfazer?** Antes de excluir, o registro e tudo que depende dele são copiados em JSON para a tabela
   `lixeira`. "Desfazer" recoloca as linhas com os mesmos ids, dentro de 5 minutos.
+
+- **Como o aluno entra no portal?** No primeiro acesso ele confirma CPF e data de nascimento (que estão no cadastro) e
+  cria a senha. A sessão do aluno usa outro cookie, então ele nunca abre as telas da equipe, e cada consulta filtra
+  pelo id do aluno logado.
+- **Como o portal sabe o treino de hoje?** Cada ficha tem dias da semana (`ficha.dias`). Se nenhuma ficha tem dia fixo,
+  segue a sequência A → B → C a partir do último treino concluído (`lib/rotina.ts`, com testes).
+
+- **Como funciona o Pix?** O sistema monta o "copia e cola" (padrão BR Code do Banco Central, com CRC16) com a chave da
+  academia e o valor da parcela. O dinheiro vai direto para a academia; como não há integração com banco, o aluno avisa
+  "Já fiz o Pix" e a recepção confere em Financeiro → Pix.
+- **Como evita passar do limite de vagas?** A reserva confere vagas e conflito de horário dentro de uma transação
+  `BEGIN IMMEDIATE`, que bloqueia outras escritas enquanto confere.
 
 ### Next.js e código
 - **O que é uma Server Action?** Uma função que roda no servidor e é chamada direto pelo formulário, sem criar uma API à parte.

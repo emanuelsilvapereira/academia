@@ -14,9 +14,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/alunos", rotulo: "Alunos" },
     { href: "/frequencia", rotulo: "Frequência" },
     ...(pode(usuario.perfil, "financeiro.ver") ? [{ href: "/financeiro", rotulo: "Financeiro" }] : []),
+    { href: "/aulas", rotulo: "Aulas" },
     { href: "/exercicios", rotulo: "Exercícios" },
     { href: "/planos", rotulo: "Planos" },
     { href: "/instrutores", rotulo: "Instrutores" },
+    ...(pode(usuario.perfil, "avisos.editar") ? [{ href: "/avisos", rotulo: "Avisos" }] : []),
     ...(pode(usuario.perfil, "usuarios.gerenciar") ? [{ href: "/usuarios", rotulo: "Usuários" }] : []),
     ...(pode(usuario.perfil, "auditoria.ver") ? [{ href: "/auditoria", rotulo: "Auditoria" }] : []),
   ];

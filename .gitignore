@@ -49,3 +49,6 @@ next-env.d.ts
 # banco local e cópias de segurança (dados de demonstração, recriados automaticamente)
 /data/
 /backups/
+
+# configurações locais do Claude Code (a skill find-skills fica em .agents/, que vai para o repositório)
+/.claude/

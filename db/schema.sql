@@ -1,4 +1,4 @@
--- Modelo do banco de dados · Pulso (gestão de academia) · versão 2
+-- Modelo do banco de dados · Pulso (gestão de academia) · versão 6
 -- SQLite. Este arquivo é executado automaticamente ao abrir o banco (CREATE ... IF NOT EXISTS).
 -- Datas ficam como texto ISO (AAAA-MM-DD), horas como HH:MM:SS e dinheiro em centavos (inteiro),
 -- para evitar erro de arredondamento.
@@ -52,7 +52,9 @@ CREATE TABLE IF NOT EXISTS aluno (
   instrutor_id INTEGER REFERENCES instrutor (id) ON DELETE SET NULL,
   ativo        INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1)),
   codigo       TEXT    NOT NULL UNIQUE,
-  cadastro     TEXT    NOT NULL CHECK (cadastro GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')
+  cadastro     TEXT    NOT NULL CHECK (cadastro GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  -- Senha do portal do aluno (hash scrypt). Vazia = o aluno ainda não fez o primeiro acesso.
+  senha_hash   TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_aluno_instrutor ON aluno (instrutor_id);
@@ -92,6 +94,8 @@ CREATE TABLE IF NOT EXISTS pagamento (
   vencimento     TEXT    NOT NULL CHECK (vencimento GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
   pago_em        TEXT    CHECK (pago_em IS NULL OR pago_em GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
   forma          TEXT    CHECK (forma IS NULL OR forma IN ('pix', 'cartao', 'dinheiro', 'boleto')),
+  -- Quando o aluno avisou pelo portal que pagou por Pix (a recepção confere e registra o pagamento).
+  informado_em   TEXT,
   CHECK ((pago_em IS NULL) = (forma IS NULL)),
   UNIQUE (matricula_id, parcela)
 );
@@ -122,12 +126,22 @@ CREATE INDEX IF NOT EXISTS idx_presenca_data ON presenca (data);
 -- Treinos
 -- ---------------------------------------------------------------------------------------------
 
--- Biblioteca de exercícios usada para montar as fichas.
+-- Biblioteca de exercícios usada para montar as fichas e mostrada no portal do aluno.
+-- musculos_primarios / musculos_secundarios: ids separados por vírgula (lista em lib/musculos.ts).
+-- execucao: um passo por linha. video_url: link do YouTube ou de um arquivo .mp4 (opcional).
 CREATE TABLE IF NOT EXISTS exercicio (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  nome        TEXT    NOT NULL UNIQUE COLLATE NOCASE CHECK (length(nome) BETWEEN 3 AND 60),
-  grupo       TEXT    NOT NULL CHECK (grupo IN ('peito', 'costas', 'ombros', 'biceps', 'triceps', 'pernas', 'gluteos', 'abdomen', 'cardio', 'corpo_todo')),
-  equipamento TEXT    NOT NULL CHECK (length(equipamento) BETWEEN 2 AND 40)
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome                 TEXT    NOT NULL UNIQUE COLLATE NOCASE CHECK (length(nome) BETWEEN 3 AND 60),
+  grupo                TEXT    NOT NULL CHECK (grupo IN ('peito', 'costas', 'ombros', 'biceps', 'triceps', 'pernas', 'gluteos', 'abdomen', 'cardio', 'corpo_todo')),
+  equipamento          TEXT    NOT NULL CHECK (length(equipamento) BETWEEN 2 AND 40),
+  descricao            TEXT    NOT NULL DEFAULT '' CHECK (length(descricao) <= 400),
+  execucao             TEXT    NOT NULL DEFAULT '' CHECK (length(execucao) <= 1200),
+  dicas                TEXT    NOT NULL DEFAULT '' CHECK (length(dicas) <= 600),
+  musculos_primarios   TEXT    NOT NULL DEFAULT '',
+  musculos_secundarios TEXT    NOT NULL DEFAULT '',
+  video_url            TEXT    NOT NULL DEFAULT '' CHECK (length(video_url) <= 300),
+  -- Pasta da animação em public/exercicios/<pasta>/ (duas fotos: 0.jpg e 1.jpg). Vazio = sem animação.
+  animacao             TEXT    NOT NULL DEFAULT '' CHECK (animacao NOT GLOB '*[^A-Za-z0-9_-]*')
 );
 
 -- Fichas de treino do aluno (A, B, C...). Cada aluno tem no máximo uma ficha por letra.
@@ -138,6 +152,8 @@ CREATE TABLE IF NOT EXISTS ficha (
   objetivo      TEXT    NOT NULL DEFAULT '' CHECK (length(objetivo) <= 60),
   instrutor_id  INTEGER REFERENCES instrutor (id) ON DELETE SET NULL,
   atualizada_em TEXT    NOT NULL,
+  -- Dias da semana em que a ficha é feita (0 = segunda ... 6 = domingo), separados por vírgula. Vazio = sem dia fixo.
+  dias          TEXT    NOT NULL DEFAULT '',
   UNIQUE (aluno_id, letra)
 );
 
@@ -156,6 +172,17 @@ CREATE TABLE IF NOT EXISTS ficha_item (
 CREATE INDEX IF NOT EXISTS idx_ficha_item_ficha ON ficha_item (ficha_id, ordem);
 CREATE INDEX IF NOT EXISTS idx_ficha_item_exercicio ON ficha_item (exercicio_id);
 
+-- Treinos que o aluno marcou como concluídos no portal (a letra é copiada: o histórico fica mesmo se a ficha mudar).
+CREATE TABLE IF NOT EXISTS treino_feito (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  aluno_id INTEGER NOT NULL REFERENCES aluno (id) ON DELETE CASCADE,
+  data     TEXT    NOT NULL CHECK (data GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  letra    TEXT    NOT NULL CHECK (letra IN ('A', 'B', 'C', 'D', 'E')),
+  UNIQUE (aluno_id, data, letra)
+);
+
+CREATE INDEX IF NOT EXISTS idx_treino_feito_aluno ON treino_feito (aluno_id, data);
+
 -- Avaliações físicas (histórico). Uma por aluno por dia.
 CREATE TABLE IF NOT EXISTS avaliacao (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -170,6 +197,64 @@ CREATE TABLE IF NOT EXISTS avaliacao (
   coxa_cm      REAL    CHECK (coxa_cm IS NULL OR coxa_cm BETWEEN 20 AND 120),
   instrutor_id INTEGER REFERENCES instrutor (id) ON DELETE SET NULL,
   UNIQUE (aluno_id, data)
+);
+
+-- Cargas que o aluno anota no portal, para acompanhar a evolução de força em cada exercício.
+CREATE TABLE IF NOT EXISTS carga_registro (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  aluno_id     INTEGER NOT NULL REFERENCES aluno (id) ON DELETE CASCADE,
+  exercicio_id INTEGER NOT NULL REFERENCES exercicio (id) ON DELETE CASCADE,
+  data         TEXT    NOT NULL CHECK (data GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  carga_kg     REAL    NOT NULL CHECK (carga_kg BETWEEN 0 AND 500),
+  repeticoes   INTEGER CHECK (repeticoes IS NULL OR repeticoes BETWEEN 1 AND 100),
+  UNIQUE (aluno_id, exercicio_id, data)
+);
+
+CREATE INDEX IF NOT EXISTS idx_carga_exercicio ON carga_registro (exercicio_id);
+
+-- ---------------------------------------------------------------------------------------------
+-- Aulas coletivas
+-- ---------------------------------------------------------------------------------------------
+
+-- Grade semanal de aulas (uma linha por dia e horário). dia_semana: 0 = segunda ... 6 = domingo.
+CREATE TABLE IF NOT EXISTS aula (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome         TEXT    NOT NULL CHECK (length(nome) BETWEEN 3 AND 40),
+  dia_semana   INTEGER NOT NULL CHECK (dia_semana BETWEEN 0 AND 6),
+  hora         TEXT    NOT NULL CHECK (hora GLOB '[0-2][0-9]:[0-5][0-9]'),
+  duracao_min  INTEGER NOT NULL CHECK (duracao_min BETWEEN 15 AND 180),
+  vagas        INTEGER NOT NULL CHECK (vagas BETWEEN 1 AND 200),
+  sala         TEXT    NOT NULL DEFAULT '' CHECK (length(sala) <= 30),
+  instrutor_id INTEGER REFERENCES instrutor (id) ON DELETE SET NULL,
+  ativo        INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1))
+);
+
+-- Reservas dos alunos em uma aula numa data específica.
+CREATE TABLE IF NOT EXISTS aula_reserva (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  aula_id   INTEGER NOT NULL REFERENCES aula (id) ON DELETE CASCADE,
+  aluno_id  INTEGER NOT NULL REFERENCES aluno (id) ON DELETE CASCADE,
+  data      TEXT    NOT NULL CHECK (data GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  criada_em TEXT    NOT NULL,
+  UNIQUE (aula_id, data, aluno_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reserva_aula_data ON aula_reserva (aula_id, data);
+CREATE INDEX IF NOT EXISTS idx_reserva_aluno ON aula_reserva (aluno_id, data);
+
+-- ---------------------------------------------------------------------------------------------
+-- Comunicação
+-- ---------------------------------------------------------------------------------------------
+
+-- Avisos da academia mostrados no portal do aluno (feriados, manutenção, eventos...).
+CREATE TABLE IF NOT EXISTS aviso (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  titulo    TEXT    NOT NULL CHECK (length(titulo) BETWEEN 3 AND 80),
+  texto     TEXT    NOT NULL CHECK (length(texto) BETWEEN 3 AND 600),
+  criado_em TEXT    NOT NULL,
+  expira_em TEXT    CHECK (expira_em IS NULL OR expira_em GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  fixado    INTEGER NOT NULL DEFAULT 0 CHECK (fixado IN (0, 1)),
+  autor_id  INTEGER REFERENCES usuario (id) ON DELETE SET NULL
 );
 
 -- ---------------------------------------------------------------------------------------------

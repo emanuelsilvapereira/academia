@@ -5,11 +5,16 @@ import { exigirPermissao } from "@/lib/auth";
 import { inadimplentes, pagamentosRecebidos, receitaPorMes, totaisInadimplencia, vencimentosProximos } from "@/lib/consultas";
 import { getDb } from "@/lib/db";
 import { addMeses, brl, FORMA_ROTULO, formatarData, formatarTelefone, hojeISO, plural, rotuloMes } from "@/lib/format";
+import { BotaoAcao } from "@/components/botao-excluir";
 import { pode } from "@/lib/permissoes";
+import { recusarPixInformado, receberPagamento } from "../alunos/[id]/actions";
+import { ReceberForm } from "../alunos/[id]/formularios";
 import { GraficoReceita } from "../painel/graficos";
+import { PixForm } from "./pix-form";
 
 type Busca = Record<string, string | string[] | undefined>;
-const ABAS = { inadimplencia: "Inadimplência", vencimentos: "Vencimentos próximos", recebidos: "Pagamentos recebidos" } as const;
+const ABAS = { inadimplencia: "Inadimplência", vencimentos: "Vencimentos próximos", recebidos: "Pagamentos recebidos", pix: "Pix" } as const;
+type Informado = { id: number; aluno_id: number; nome: string; plano_nome: string; parcela: number; meses: number; valor_centavos: number; vencimento: string; informado_em: string };
 type Aba = keyof typeof ABAS;
 
 export default async function FinanceiroPage({ searchParams }: { searchParams: Promise<Busca> }) {
@@ -31,6 +36,17 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
   const vencendo = aba === "vencimentos" ? vencimentosProximos(db, hoje) : [];
   const recebidos = aba === "recebidos" ? pagamentosRecebidos(db, mes) : [];
   const totalRecebido = recebidos.reduce((s, p) => s + p.valor_centavos, 0);
+  const informados = db
+    .prepare(
+      `SELECT pg.id, a.id AS aluno_id, a.nome, p.nome AS plano_nome, pg.parcela, p.meses, pg.valor_centavos, pg.vencimento, pg.informado_em
+       FROM pagamento pg JOIN matricula m ON m.id = pg.matricula_id JOIN aluno a ON a.id = m.aluno_id JOIN plano p ON p.id = m.plano_id
+       WHERE pg.informado_em IS NOT NULL AND pg.pago_em IS NULL ORDER BY pg.informado_em`,
+    )
+    .all() as Informado[];
+  const configPix = Object.fromEntries(
+    (db.prepare("SELECT chave, valor FROM config WHERE chave IN ('pix_chave', 'pix_nome', 'pix_cidade')").all() as { chave: string; valor: string }[]).map((r) => [r.chave, r.valor]),
+  );
+  const editarFinanceiro = pode(usuario.perfil, "financeiro.editar");
   const porForma = Object.entries(
     recebidos.reduce<Record<string, number>>((acc, p) => ({ ...acc, [p.forma]: (acc[p.forma] ?? 0) + p.valor_centavos }), {}),
   ).sort((a, b) => b[1] - a[1]);
@@ -64,6 +80,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
         {(Object.keys(ABAS) as Aba[]).map((a) => (
           <Link key={a} href={`/financeiro?aba=${a}`} aria-current={a === aba ? "page" : undefined}>
             {ABAS[a]}
+            {a === "pix" && informados.length ? ` (${informados.length} a conferir)` : ""}
           </Link>
         ))}
       </nav>
@@ -227,6 +244,83 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
               </tbody>
             </table>
           </div>
+        </>
+      ) : null}
+
+      {aba === "pix" ? (
+        <>
+          <p className="muted" style={{ marginBottom: 16 }}>
+            Parcelas que o aluno avisou pelo portal que pagou por Pix. Confira no extrato do banco e registre o pagamento; se o Pix não caiu, remova o aviso.
+          </p>
+          <div className="tabela" style={{ marginBottom: 32 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Informado em</th>
+                  <th>Aluno</th>
+                  <th>Parcela</th>
+                  <th>Valor</th>
+                  <th className="actions">
+                    <span className="sr">Ações</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {informados.length === 0 ? (
+                  <tr>
+                    <td className="empty" colSpan={5}>
+                      Nenhum Pix aguardando conferência.
+                    </td>
+                  </tr>
+                ) : (
+                  informados.map((p) => (
+                    <tr key={p.id}>
+                      <td data-label="Informado em">
+                        {formatarData(p.informado_em.slice(0, 10))} <span className="muted small">{p.informado_em.slice(11, 16)}</span>
+                      </td>
+                      <td data-label="Aluno">
+                        <Link href={`/alunos/${p.aluno_id}#pagamentos`} className="name sublinhado-hover">
+                          {p.nome}
+                        </Link>
+                      </td>
+                      <td data-label="Parcela">
+                        {p.plano_nome} {p.meses > 1 ? `${p.parcela}/${p.meses}` : ""} <span className="muted small">· vence {formatarData(p.vencimento)}</span>
+                      </td>
+                      <td data-label="Valor" className="mono">
+                        {brl(p.valor_centavos)}
+                      </td>
+                      <td className="actions">
+                        {editarFinanceiro ? (
+                          <>
+                            <ReceberForm acao={receberPagamento.bind(null, p.id)} hoje={hoje} />
+                            <BotaoAcao
+                              acao={recusarPixInformado.bind(null, p.id)}
+                              rotulo="Não caiu"
+                              perigo
+                              confirmacao={{
+                                titulo: "O Pix não caiu?",
+                                texto: `O aviso de ${p.nome} é removido e a parcela de ${brl(p.valor_centavos)} continua em aberto.`,
+                                botao: "Remover aviso",
+                              }}
+                            />
+                          </>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {pode(usuario.perfil, "config.editar") ? (
+            <section className="panel form-page">
+              <h2>Pix da academia</h2>
+              <p className="muted small" style={{ marginBottom: 16 }}>
+                Usado para gerar o QR code e o &quot;copia e cola&quot; no portal do aluno. O dinheiro vai direto para esta chave.
+              </p>
+              <PixForm inicial={{ chave: configPix.pix_chave ?? "", nome: configPix.pix_nome ?? "", cidade: configPix.pix_cidade ?? "" }} />
+            </section>
+          ) : null}
         </>
       ) : null}
     </>

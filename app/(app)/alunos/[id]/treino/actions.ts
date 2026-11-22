@@ -7,6 +7,7 @@ import { getDb } from "@/lib/db";
 import { hojeISO } from "@/lib/format";
 import { ehViolacaoUnica, semErros, texto, type FormState, type ResultadoAcao, type ResultadoExclusao } from "@/lib/form";
 import { excluirComDesfazer } from "@/lib/lixeira";
+import { DIAS_LONGOS, diasParaTexto } from "@/lib/rotina";
 import { paraDecimal } from "@/lib/validacao";
 
 const LETRAS = ["A", "B", "C", "D", "E"];
@@ -137,4 +138,23 @@ export async function moverExercicio(alunoId: number, itemId: number, direcao: -
   })();
   atualizar(alunoId);
   return { ok: true, mensagem: "" };
+}
+
+/** Define em quais dias da semana a ficha é feita (aparece na rotina do aluno no portal). */
+export async function definirDiasFicha(alunoId: number, fichaId: number, _estado: FormState, form: FormData): Promise<FormState> {
+  const usuario = await exigirPermissao("treinos.editar");
+  const f = fichaDoAluno(fichaId, alunoId);
+  if (!f) return { mensagem: "Ficha não encontrada." };
+  const dias = form
+    .getAll("dias")
+    .map((d) => Number(d))
+    .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+  const texto = diasParaTexto(dias);
+  const db = getDb();
+  db.prepare("UPDATE ficha SET dias = ? WHERE id = ?").run(texto, fichaId);
+  const nomes = texto ? texto.split(",").map((d) => DIAS_LONGOS[Number(d)]).join(", ") : "sem dia fixo";
+  auditar(db, usuario, "editar", "ficha", fichaId, `Definiu os dias da ficha ${f.letra} de ${f.nome}: ${nomes}`);
+  atualizar(alunoId);
+  revalidatePath("/aluno", "layout");
+  return { ok: true, mensagem: `Ficha ${f.letra}: ${nomes}.` };
 }

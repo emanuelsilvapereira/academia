@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useTransition } from "react";
 import { useAvisos } from "@/components/avisos";
 import { Campo } from "@/components/campo";
 import { GRUPO_ROTULO } from "@/lib/format";
+import { DIAS_CURTOS } from "@/lib/rotina";
 import type { FormState, ResultadoAcao } from "@/lib/form";
 
 type Acao = (estado: FormState, dados: FormData) => Promise<FormState>;
@@ -104,5 +105,28 @@ export function BotoesOrdem({ subir, descer, primeiro, ultimo }: { subir: () => 
         ↓
       </button>
     </span>
+  );
+}
+
+/** Dias da semana em que a ficha é feita (checkboxes seg a dom). */
+export function DiasFichaForm({ acao, dias, prefixo }: { acao: Acao; dias: number[]; prefixo: string }) {
+  const [estado, executar, pendente] = useActionState(acao, undefined);
+  const { avisar } = useAvisos();
+  useEffect(() => {
+    if (estado?.mensagem) avisar({ texto: estado.mensagem, erro: !estado.ok });
+  }, [estado, avisar]);
+  return (
+    <form action={executar} className="dias-ficha" aria-label="Dias da semana desta ficha">
+      <span className="muted small">Dias:</span>
+      {DIAS_CURTOS.map((d, i) => (
+        <label key={d} className="dia-check" htmlFor={`${prefixo}-d${i}`}>
+          <input id={`${prefixo}-d${i}`} type="checkbox" name="dias" value={i} defaultChecked={dias.includes(i)} />
+          <span>{d}</span>
+        </label>
+      ))}
+      <button type="submit" className="btn sm" disabled={pendente}>
+        {pendente ? "…" : "Salvar dias"}
+      </button>
+    </form>
   );
 }

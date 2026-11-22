@@ -31,17 +31,19 @@ import {
   estornarPagamento,
   excluirAvaliacao,
   receberPagamento,
+  redefinirAcessoPortal,
   renovar,
 } from "./actions";
 import { AvaliacaoForm, ReceberForm, RenovarForm } from "./formularios";
 
 type Matricula = { id: number; plano_nome: string; inicio: string; fim: string; valor_centavos: number; renovacao_automatica: number; cancelada_em: string | null };
-type Parcela = { id: number; matricula_id: number; plano_nome: string; parcela: number; meses: number; valor_centavos: number; vencimento: string; pago_em: string | null; forma: string | null };
+type Parcela = { id: number; matricula_id: number; plano_nome: string; parcela: number; meses: number; valor_centavos: number; vencimento: string; pago_em: string | null; forma: string | null; informado_em: string | null };
 type ItemFicha = { ficha_id: number; letra: string; objetivo: string; exercicio: string; grupo: string; series: number; repeticoes: string; carga_kg: number | null };
 type Avaliacao = { id: number; data: string; peso_kg: number; altura_cm: number; gordura_pct: number | null; cintura_cm: number | null; quadril_cm: number | null; braco_cm: number | null; coxa_cm: number | null };
 
 function SituacaoParcela({ p, hoje }: { p: Parcela; hoje: string }) {
   if (p.pago_em) return <span>Pago em {formatarData(p.pago_em)} · {FORMA_ROTULO[p.forma ?? ""] ?? p.forma}</span>;
+  if (p.informado_em) return <strong>Aluno informou Pix em {formatarData(p.informado_em.slice(0, 10))}: conferir</strong>;
   if (p.vencimento < hoje) return <strong>Atrasado há {plural(diasEntre(p.vencimento, hoje), "dia", "dias")}</strong>;
   if (p.vencimento === hoje) return <strong>Vence hoje</strong>;
   return <span className="muted">A vencer</span>;
@@ -76,7 +78,7 @@ export default async function PerfilAlunoPage({ params }: { params: Promise<{ id
   const parcelas = verFinanceiro
     ? (db
         .prepare(
-          `SELECT pg.id, pg.matricula_id, p.nome AS plano_nome, pg.parcela, p.meses, pg.valor_centavos, pg.vencimento, pg.pago_em, pg.forma
+          `SELECT pg.id, pg.matricula_id, p.nome AS plano_nome, pg.parcela, p.meses, pg.valor_centavos, pg.vencimento, pg.pago_em, pg.forma, pg.informado_em
            FROM pagamento pg JOIN matricula m ON m.id = pg.matricula_id JOIN plano p ON p.id = m.plano_id
            WHERE m.aluno_id = ? AND (pg.pago_em IS NULL OR pg.vencimento >= ?)
            ORDER BY pg.vencimento DESC, pg.id DESC`,
@@ -109,6 +111,7 @@ export default async function PerfilAlunoPage({ params }: { params: Promise<{ id
   const totalPresencas = (db.prepare("SELECT COUNT(*) AS n FROM presenca WHERE aluno_id = ?").get(alunoId) as { n: number }).n;
 
   const avaliacoes = db.prepare("SELECT * FROM avaliacao WHERE aluno_id = ? ORDER BY data").all(alunoId) as Avaliacao[];
+  const temAcesso = Boolean((db.prepare("SELECT senha_hash IS NOT NULL AS ok FROM aluno WHERE id = ?").get(alunoId) as { ok: number }).ok);
   const ultimaAv = avaliacoes[avaliacoes.length - 1];
   const imc = ultimaAv ? ultimaAv.peso_kg / (ultimaAv.altura_cm / 100) ** 2 : null;
 
@@ -183,7 +186,22 @@ export default async function PerfilAlunoPage({ params }: { params: Promise<{ id
             <dd>{aluno.instrutor_nome ?? "Sem instrutor"}</dd>
             <dt>Último treino</dt>
             <dd>{aluno.ultima_presenca ? `${formatarData(aluno.ultima_presenca)} (há ${plural(diasEntre(aluno.ultima_presenca, hoje), "dia", "dias")})` : "Nunca veio"}</dd>
+            <dt>Portal do aluno</dt>
+            <dd>{temAcesso ? "Acesso criado" : "Aguardando primeiro acesso"}</dd>
           </dl>
+          {editarAluno && temAcesso ? (
+            <BotaoAcao
+              acao={redefinirAcessoPortal.bind(null, aluno.id)}
+              rotulo="Redefinir acesso ao portal"
+              confirmacao={{
+                titulo: "Redefinir o acesso ao portal?",
+                texto: "A senha atual do aluno deixa de valer. Ele(a) cria uma nova no primeiro acesso, confirmando CPF e data de nascimento.",
+                botao: "Redefinir",
+              }}
+            />
+          ) : !temAcesso ? (
+            <p className="hint">Para entrar no portal (/aluno), o aluno usa &quot;Primeiro acesso&quot; com o CPF e a data de nascimento do cadastro.</p>
+          ) : null}
         </div>
         <div className="panel carteirinha">
           <h2>Carteirinha</h2>

@@ -103,6 +103,7 @@ export async function receberPagamento(pagamentoId: number, _estado: FormState, 
   db.prepare("UPDATE pagamento SET pago_em = ?, forma = ? WHERE id = ? AND pago_em IS NULL").run(data, forma, pagamentoId);
   auditar(db, usuario, "pagar", "pagamento", pagamentoId, `Recebeu a parcela ${p.parcela} de ${p.nome}: ${brl(p.valor_centavos)} (${FORMA_ROTULO[forma]})`);
   atualizar(p.aluno_id);
+  revalidatePath("/financeiro");
   return { ok: true, mensagem: "Pagamento registrado." };
 }
 
@@ -111,10 +112,23 @@ export async function estornarPagamento(pagamentoId: number): Promise<ResultadoA
   const p = buscarParcela(pagamentoId);
   if (!p || !p.pago_em) return { ok: false, mensagem: "Essa parcela não está paga." };
   const db = getDb();
-  db.prepare("UPDATE pagamento SET pago_em = NULL, forma = NULL WHERE id = ?").run(pagamentoId);
+  db.prepare("UPDATE pagamento SET pago_em = NULL, forma = NULL, informado_em = NULL WHERE id = ?").run(pagamentoId);
   auditar(db, usuario, "estornar", "pagamento", pagamentoId, `Estornou a parcela ${p.parcela} de ${p.nome}: ${brl(p.valor_centavos)}`);
   atualizar(p.aluno_id);
   return { ok: true, mensagem: "Pagamento estornado: a parcela voltou a ficar em aberto." };
+}
+
+/** O aluno avisou um Pix que não caiu: limpa o aviso (a parcela continua em aberto). */
+export async function recusarPixInformado(pagamentoId: number): Promise<ResultadoAcao> {
+  const usuario = await exigirPermissao("financeiro.editar");
+  const p = buscarParcela(pagamentoId);
+  if (!p || p.pago_em) return { ok: false, mensagem: "Essa parcela não está aguardando conferência." };
+  const db = getDb();
+  db.prepare("UPDATE pagamento SET informado_em = NULL WHERE id = ? AND pago_em IS NULL").run(pagamentoId);
+  auditar(db, usuario, "editar", "pagamento", pagamentoId, `Não encontrou o Pix informado da parcela ${p.parcela} de ${p.nome}`);
+  atualizar(p.aluno_id);
+  revalidatePath("/financeiro");
+  return { ok: true, mensagem: "Aviso de Pix removido. A parcela continua em aberto." };
 }
 
 // ---------- Avaliação física ----------
@@ -180,4 +194,18 @@ export async function excluirAvaliacao(alunoId: number, avaliacaoId: number): Pr
   auditar(db, usuario, "excluir", "avaliacao", avaliacaoId, `Excluiu a avaliação de ${formatarData(a.data)}`);
   atualizar(alunoId);
   return { ok: true, mensagem: "Avaliação excluída.", desfazer: desfazer ?? undefined };
+}
+
+// ---------- Portal do aluno ----------
+
+/** Apaga a senha do portal: o aluno sai na hora e precisa fazer o primeiro acesso de novo (CPF + nascimento). */
+export async function redefinirAcessoPortal(alunoId: number): Promise<ResultadoAcao> {
+  const usuario = await exigirPermissao("alunos.editar");
+  const db = getDb();
+  const aluno = db.prepare("SELECT nome FROM aluno WHERE id = ?").get(alunoId) as { nome: string } | undefined;
+  if (!aluno) return { ok: false, mensagem: "Esse aluno não existe mais." };
+  db.prepare("UPDATE aluno SET senha_hash = NULL WHERE id = ?").run(alunoId);
+  auditar(db, usuario, "editar", "portal", alunoId, `Redefiniu o acesso ao portal de ${aluno.nome}`);
+  atualizar(alunoId);
+  return { ok: true, mensagem: `Acesso de ${aluno.nome} redefinido. Ele(a) deve fazer o primeiro acesso de novo.` };
 }

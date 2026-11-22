@@ -7,7 +7,7 @@ import { GRUPO_ROTULO, plural } from "@/lib/format";
 import { pode } from "@/lib/permissoes";
 import { excluirExercicio } from "./actions";
 
-type Linha = { id: number; nome: string; grupo: string; equipamento: string; fichas: number };
+type Linha = { id: number; nome: string; grupo: string; equipamento: string; fichas: number; completo: number; video: number; animacao: string };
 type Busca = Record<string, string | string[] | undefined>;
 
 export default async function ExerciciosPage({ searchParams }: { searchParams: Promise<Busca> }) {
@@ -20,7 +20,8 @@ export default async function ExerciciosPage({ searchParams }: { searchParams: P
 
   const exercicios = getDb()
     .prepare(
-      `SELECT e.id, e.nome, e.grupo, e.equipamento, COUNT(DISTINCT fi.ficha_id) AS fichas
+      `SELECT e.id, e.nome, e.grupo, e.equipamento, COUNT(DISTINCT fi.ficha_id) AS fichas,
+              (e.descricao <> '' AND e.musculos_primarios <> '') AS completo, (e.video_url <> '') AS video, e.animacao
        FROM exercicio e LEFT JOIN ficha_item fi ON fi.exercicio_id = e.id
        WHERE (@q = '' OR e.nome LIKE '%' || @q || '%' OR e.equipamento LIKE '%' || @q || '%')
          AND (@grupo = '' OR e.grupo = @grupo)
@@ -85,7 +86,14 @@ export default async function ExerciciosPage({ searchParams }: { searchParams: P
               exercicios.map((e) => (
                 <tr key={e.id}>
                   <td data-label="Exercício">
-                    <span className="name">{e.nome}</span>
+                    <span>
+                      <Link href={`/exercicios/${e.id}`} className="name sublinhado-hover">
+                        {e.nome}
+                      </Link>
+                      <span className="sub">
+                        {[e.animacao ? "com animação" : "sem animação", e.video ? "com vídeo" : null, e.completo ? null : "sem explicação"].filter(Boolean).join(" · ")}
+                      </span>
+                    </span>
                   </td>
                   <td data-label="Grupo muscular">{GRUPO_ROTULO[e.grupo]}</td>
                   <td data-label="Equipamento">{e.equipamento}</td>

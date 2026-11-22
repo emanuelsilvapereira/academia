@@ -378,4 +378,217 @@ td.actions .ordem .btn { margin-left: 0; }
   .receber { justify-content: flex-start; }
 }
 
+/* ---------- v3: portal do aluno, rotina e exercícios ---------- */
+textarea {
+  width: 100%; font: inherit; color: var(--fg); resize: vertical;
+  padding: 9px 12px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+textarea:hover { border-color: var(--line-strong); }
+textarea:focus { outline: none; border-color: var(--muted); box-shadow: 0 0 0 3px var(--line); }
+textarea[aria-invalid="true"] { border-color: var(--fg); }
+
+.brand-sub { margin-left: 2px; padding: 1px 8px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 999px; }
+.login-links { margin-top: 20px; font-size: 13px; }
+.login-links a { text-decoration: underline; text-underline-offset: 3px; }
+.login-card .login-links.muted { margin-bottom: 0; }
+
+.tag { display: inline-block; margin-left: 6px; padding: 1px 8px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 999px; vertical-align: middle; white-space: nowrap; }
+.tag:first-child { margin-left: 0; }
+.tag-forte { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+.faixa-info { border-left-color: var(--muted); }
+.tools .check { margin-bottom: 0; align-items: center; font-size: 13px; }
+.tools .check input { margin-top: 0; }
+
+/* Treino de hoje + semana */
+.hoje-treino { margin-bottom: 24px; }
+.hoje-treino .destaque { margin: 6px 0 4px; }
+.semana { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 24px; list-style: none; }
+.semana-dia { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; text-align: center; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.semana-nome { font-size: 12px; color: var(--muted); }
+.semana-letra { font-size: 20px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
+.semana-estado { color: var(--muted); font-size: 11px; }
+.semana-dia.hoje { border-color: var(--fg); }
+.semana-dia.hoje .semana-nome { color: var(--fg); font-weight: 600; }
+.semana-dia.feito { background: var(--fg); border-color: var(--fg); }
+.semana-dia.feito span { color: var(--bg); }
+.semana-dia.futuro .semana-letra { opacity: 0.6; }
+
+/* Conquistas */
+.conquistas { list-style: none; display: grid; gap: 12px; }
+.conquistas li { display: flex; gap: 12px; align-items: flex-start; opacity: 0.55; }
+.conquistas li.ganhou { opacity: 1; }
+.conquistas li > span:last-child { display: flex; flex-direction: column; }
+.medalha { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; font-size: 15px; border: 1px solid var(--line-strong); border-radius: 50%; }
+.conquistas li.ganhou .medalha { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+a.panel.carteirinha { display: block; }
+
+/* Carteirinha em tela cheia */
+.carteirinha-cheia { display: flex; justify-content: center; }
+.carteirinha-cartao { width: 100%; max-width: 380px; padding: 32px 24px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; }
+.carteirinha-cartao h1 { margin: 8px 0 24px; font-size: 24px; }
+.carteirinha-cartao .qr { margin: 0 auto; max-width: 100%; }
+.carteirinha-cartao .codigo { margin: 16px 0; font-size: 20px; letter-spacing: 0.08em; }
+.carteirinha-cartao .hint { margin-top: 20px; }
+
+/* Lista de exercícios da ficha (portal) */
+.lista-exercicios { list-style: none; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.lista-exercicios > li + li { border-top: 1px solid var(--line); }
+.lista-exercicios > li.muted { padding: 16px; }
+.item-exercicio { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center; padding: 14px 16px; background: var(--surface); transition: background .15s; }
+.item-exercicio:hover { background: color-mix(in srgb, var(--surface) 70%, var(--line)); }
+.item-num { color: var(--muted); }
+.item-corpo { display: flex; flex-direction: column; min-width: 0; }
+.item-corpo .name { font-weight: 500; }
+.item-corpo .sub { color: var(--muted); font-size: 13px; }
+.item-carga { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.ficha-aluno .secao-head { align-items: center; }
+
+/* Biblioteca de exercícios */
+.card-exercicio { display: flex; flex-direction: column; gap: 4px; transition: border-color .15s; }
+.card-exercicio:hover { border-color: var(--line-strong); }
+.card-exercicio h3 { font-size: 16px; font-weight: 500; letter-spacing: -0.01em; }
+.card-exercicio .resumo { margin-top: 8px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card-exercicio .musculos-linha { margin-top: auto; padding-top: 10px; }
+.ex-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.ex-tags .tag { margin-left: 0; }
+
+/* Página do exercício */
+.exercicio-detalhe { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+.ex-coluna > * + * { margin-top: 20px; }
+.ex-coluna .ex-tags { margin-bottom: 0; }
+.ex-bloco h2 { margin-bottom: 8px; }
+.passos { padding-left: 22px; display: grid; gap: 8px; }
+.dicas { padding-left: 20px; display: grid; gap: 6px; color: var(--muted); }
+.dicas li::marker { color: var(--fg); }
+.video { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #000; border-radius: 12px; border: 1px solid var(--line); }
+.video iframe, .video video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.video-vazio { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; color: var(--muted); background: var(--surface); }
+.video-vazio .r-line { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.video-vazio .r-fill { fill: var(--muted); }
+.ex-musculos { position: sticky; top: 80px; }
+.ex-musculos > div { margin-top: 20px; }
+.musculos { list-style: none; display: grid; gap: 8px; }
+.musculos li { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.musculos strong { font-weight: 500; }
+
+/* Mapa muscular */
+.mapa-muscular svg { display: block; width: 100%; height: auto; max-height: 360px; }
+.mm-base { fill: var(--line); }
+.mm-m { fill: var(--line-strong); stroke: var(--bg); stroke-width: 1; transition: fill .15s; }
+.mm-p { fill: var(--fg); }
+.mm-s { fill: color-mix(in srgb, var(--fg) 42%, var(--surface)); }
+.mm-rotulo { font-size: 12px; fill: var(--muted); }
+.mm-legenda { display: flex; gap: 16px; justify-content: center; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.mm-legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.mm-chave { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+.mm-chave.mm-p { background: var(--fg); }
+.mm-chave.mm-s { background: color-mix(in srgb, var(--fg) 42%, var(--surface)); }
+
+/* Formulário de exercício: músculos */
+.grupo-campos { margin: 0 0 18px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; }
+.grupo-campos legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
+.checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 16px; }
+.checks .check { margin-bottom: 0; font-size: 13px; }
+
+/* Dias da ficha (equipe) */
+.dias-ficha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.dia-check { position: relative; cursor: pointer; }
+.dia-check input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.dia-check span { display: inline-block; min-width: 40px; padding: 3px 8px; font-size: 12px; text-align: center; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 999px; }
+.dia-check input:checked + span { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+.dia-check input:focus-visible + span { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+/* Planos no portal */
+.card-atual { border-color: var(--fg); }
+.card h3 .tag { margin-left: 6px; }
+
+@media (max-width: 860px) {
+  .exercicio-detalhe { grid-template-columns: 1fr; }
+  .ex-musculos { position: static; }
+}
+@media (max-width: 640px) {
+  .semana { gap: 4px; }
+  .semana-dia { padding: 8px 2px; }
+  .semana-letra { font-size: 16px; }
+  .semana-estado { display: none; }
+  .item-exercicio { grid-template-columns: 22px 1fr; }
+  .item-carga { grid-column: 2; align-items: flex-start; text-align: left; }
+  .ficha-aluno .secao-head { flex-wrap: wrap; }
+}
+
+/* ---------- v4: Pix, aulas coletivas, avisos e app instalável ---------- */
+.pix { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.pix-qr { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.pix-qr h2 { margin-bottom: 0; align-self: stretch; text-align: left; }
+.pix-qr textarea { font-size: 12px; word-break: break-all; }
+.pix-qr .btn { width: 100%; }
+
+.aulas { list-style: none; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.aula { display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; align-items: center; padding: 14px 16px; background: var(--surface); }
+.aula + .aula { border-top: 1px solid var(--line); }
+.aula-hora { display: flex; flex-direction: column; font-size: 16px; line-height: 1.2; }
+.aula-corpo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.aula-corpo strong { font-weight: 500; }
+.aula-acao { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.aula-acao .err { max-width: 220px; }
+.aula-minha { box-shadow: inset 3px 0 0 var(--fg); }
+.aula-passou { opacity: 0.5; }
+
+.avisos-portal { display: grid; gap: 10px; margin-bottom: 24px; }
+.aviso-portal { padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.aviso-portal.fixado { border-color: var(--fg); }
+.aviso-portal h2 { margin-bottom: 4px; }
+.avisos-lista { list-style: none; display: grid; gap: 12px; }
+.avisos-lista .card h3 { margin-bottom: 8px; font-size: 15px; font-weight: 500; }
+.avisos-lista .card p + p { margin-top: 8px; }
+.linha-inativa { opacity: 0.55; }
+
+.instalar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; padding: 14px 16px; border: 1px dashed var(--line-strong); border-radius: 12px; }
+.instalar p { display: flex; flex-direction: column; }
+
+@media (max-width: 760px) {
+  .pix { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .aula { grid-template-columns: 52px 1fr; }
+  .aula-acao { grid-column: 2; align-items: flex-start; }
+}
+
+/* ---------- v6: animação dos exercícios (GIF com as duas fotos) ---------- */
+.animacao { margin: 0; }
+.animacao-gif { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: contain; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+.animacao-estatica { display: none; grid-template-columns: 1fr 1fr; gap: 8px; }
+.animacao-estatica img { display: block; width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+.animacao figcaption { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+/* ---------- Modelo anatômico (js-rich-body-highlighter) ---------- */
+.corpo { margin: 0; }
+.corpo-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.corpo-genero { display: flex; gap: 6px; }
+.corpo-nome { min-height: 1.5em; font-size: 13px; font-weight: 500; }
+.corpo-vistas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.corpo-vistas > div { position: relative; display: flex; flex-direction: column; align-items: center; }
+.corpo-vistas svg { display: block; width: 100%; height: auto; max-height: 520px; }
+.corpo-filtro .corpo-vistas svg path { cursor: pointer; }
+.corpo-rotulo { margin-top: 4px; font-size: 12px; color: var(--muted); }
+.corpo-painel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 24px; align-items: center; margin-bottom: 24px; }
+.corpo-painel h2 { margin-bottom: 8px; }
+.corpo-painel .corpo-vistas svg { max-height: 420px; }
+@media (max-width: 760px) {
+  .corpo-painel { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animacao-gif, .animacao figcaption .btn { display: none; }
+  .animacao-estatica { display: grid; }
+}
+.miniatura { display: block; width: 72px; height: 48px; object-fit: cover; border-radius: 6px; background: #fff; border: 1px solid var(--line); }
+.miniatura-vazia { background: var(--line); }
+.item-exercicio { grid-template-columns: 28px 72px 1fr auto; }
+.card-exercicio .miniatura { width: 100%; height: auto; aspect-ratio: 850 / 567; object-fit: contain; margin-bottom: 10px; }
+@media (max-width: 640px) {
+  .item-exercicio { grid-template-columns: 22px 56px 1fr; }
+  .item-exercicio .miniatura { width: 56px; height: 38px; }
+  .item-carga { grid-column: 3; }
+}
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

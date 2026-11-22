@@ -1,6 +1,7 @@
 // Dados 100% fictícios de demonstração, gerados na primeira execução.
 // Usa um gerador pseudoaleatório com semente fixa: os dados são sempre parecidos (as datas acompanham o dia de hoje).
 import type Database from "better-sqlite3";
+import { ANIMACOES, colunasDoCatalogo, VIDEOS_V5 } from "./catalogo-exercicios.ts";
 import { addDias, addMeses, agoraHora, diaDaSemana, hojeISO } from "./format.ts";
 import { criarMatricula } from "./matriculas.ts";
 import { hashPassword } from "./password.ts";
@@ -132,10 +133,14 @@ export function seedDatabase(db: Database.Database): void {
     { id: Number(inserirPlano.run("Anual", 89900, 12).lastInsertRowid), meses: 12 },
   ];
 
-  const inserirExercicio = db.prepare("INSERT INTO exercicio (nome, grupo, equipamento) VALUES (?, ?, ?)");
+  const inserirExercicio = db.prepare(
+    `INSERT INTO exercicio (nome, grupo, equipamento, descricao, execucao, dicas, musculos_primarios, musculos_secundarios, animacao)
+     VALUES (@nome, @grupo, @equipamento, @descricao, @execucao, @dicas, @musculos_primarios, @musculos_secundarios, @animacao)`,
+  );
+  const vazio = { descricao: "", execucao: "", dicas: "", musculos_primarios: "", musculos_secundarios: "" };
   const porGrupo: Record<string, number[]> = {};
   for (const [nome, grupo, equipamento] of EXERCICIOS) {
-    const id = Number(inserirExercicio.run(nome, grupo, equipamento).lastInsertRowid);
+    const id = Number(inserirExercicio.run({ nome, grupo, equipamento, ...(colunasDoCatalogo(nome) ?? vazio), animacao: ANIMACOES[nome] ?? "" }).lastInsertRowid);
     (porGrupo[grupo] ??= []).push(id);
   }
 
@@ -274,4 +279,189 @@ export function seedDatabase(db: Database.Database): void {
       }
     }
   });
+
+  prepararPortalDemo(db);
+  prepararExtrasDemo(db);
+}
+
+/**
+ * Versão 6: liga cada exercício conhecido à sua animação (fotos do Free Exercise DB) e tira os links do
+ * YouTube que a versão 5 tinha colocado. Links cadastrados pela equipe (diferentes dos da v5) ficam.
+ */
+export function aplicarAnimacoes(db: Database.Database): void {
+  const animar = db.prepare("UPDATE exercicio SET animacao = ? WHERE nome = ? AND animacao = ''");
+  for (const [nome, pasta] of Object.entries(ANIMACOES)) animar.run(pasta, nome);
+  const limpar = db.prepare("UPDATE exercicio SET video_url = '' WHERE nome = ? AND video_url = ?");
+  for (const [nome, url] of Object.entries(VIDEOS_V5)) limpar.run(nome, url);
+}
+
+/** Chave Pix fictícia da demonstração (domínio .exemplo não existe: nenhum dinheiro de verdade vai para ela). */
+export const PIX_DEMO = { chave: "financeiro@academia-pulso.exemplo", nome: "PULSO ACADEMIA", cidade: "SAO PAULO" };
+
+const AULAS_DEMO: [nome: string, dias: number[], hora: string, duracao: number, vagas: number, sala: string, instrutor: number][] = [
+  ["Spinning", [0, 2, 4], "07:00", 45, 20, "Sala de bike", 1],
+  ["Spinning", [0, 2], "19:00", 45, 20, "Sala de bike", 1],
+  ["Funcional", [1, 3], "18:30", 50, 16, "Área funcional", 1],
+  ["HIIT", [1, 3], "07:00", 30, 14, "Área funcional", 2],
+  ["Pilates solo", [0, 2], "10:00", 50, 12, "Sala 2", 3],
+  ["Yoga", [5], "09:00", 60, 15, "Sala 2", 3],
+  ["Zumba", [4], "19:30", 50, 25, "Sala 1", 3],
+  ["Abdômen express", [0, 1, 2, 3, 4], "12:15", 20, 18, "Sala 1", 2],
+];
+
+/**
+ * Dados de demonstração da versão 4 (seed e migração): chave Pix, grade de aulas com reservas, avisos e
+ * cargas anotadas pelo aluno de demonstração. Cada parte só é criada se ainda estiver vazia.
+ */
+export function prepararExtrasDemo(db: Database.Database): void {
+  const hoje = hojeISO();
+  let semente = 11;
+  const rng = () => ((semente = (semente * 1103515245 + 12345) % 2147483648) / 2147483648);
+
+  const config = db.prepare("INSERT OR IGNORE INTO config (chave, valor) VALUES (?, ?)");
+  config.run("pix_chave", PIX_DEMO.chave);
+  config.run("pix_nome", PIX_DEMO.nome);
+  config.run("pix_cidade", PIX_DEMO.cidade);
+
+  const demo = db.prepare("SELECT a.id FROM aluno a JOIN config c ON c.chave = 'aluno_demo_email' AND c.valor = a.email").get() as { id: number } | undefined;
+
+  // Aulas coletivas e reservas para os próximos 7 dias.
+  if (!db.prepare("SELECT 1 FROM aula").get()) {
+    const instrutores = (db.prepare("SELECT id FROM instrutor ORDER BY id").all() as { id: number }[]).map((i) => i.id);
+    const inserirAula = db.prepare("INSERT INTO aula (nome, dia_semana, hora, duracao_min, vagas, sala, instrutor_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    for (const [nome, dias, hora, duracao, vagas, sala, i] of AULAS_DEMO) {
+      for (const dia of dias) inserirAula.run(nome, dia, hora, duracao, vagas, sala, instrutores[i] ?? null);
+    }
+    const alunos = (db.prepare("SELECT id FROM aluno WHERE ativo = 1 ORDER BY id").all() as { id: number }[]).map((a) => a.id).filter((id) => id !== demo?.id);
+    const aulas = db.prepare("SELECT id, dia_semana, vagas FROM aula").all() as { id: number; dia_semana: number; vagas: number }[];
+    const reservar = db.prepare("INSERT OR IGNORE INTO aula_reserva (aula_id, aluno_id, data, criada_em) VALUES (?, ?, ?, ?)");
+    for (let d = 0; d < 7; d++) {
+      const data = addDias(hoje, d);
+      for (const a of aulas.filter((x) => x.dia_semana === diaDaSemana(data))) {
+        const quantas = Math.min(alunos.length, Math.floor(a.vagas * (0.3 + rng() * 0.75)));
+        const embaralhados = [...alunos].sort(() => rng() - 0.5).slice(0, quantas);
+        for (const aluno of embaralhados) reservar.run(a.id, aluno, data, `${addDias(data, -1)} 20:00:00`);
+      }
+    }
+    if (demo) {
+      const proxima = db
+        .prepare("SELECT id, dia_semana FROM aula WHERE nome = 'Funcional' ORDER BY dia_semana LIMIT 1")
+        .get() as { id: number; dia_semana: number } | undefined;
+      if (proxima) {
+        let data = addDias(hoje, 1);
+        while (diaDaSemana(data) !== proxima.dia_semana) data = addDias(data, 1);
+        reservar.run(proxima.id, demo.id, data, `${hoje} 08:00:00`);
+      }
+    }
+  }
+
+  // Avisos da academia.
+  if (!db.prepare("SELECT 1 FROM aviso").get()) {
+    const autor = (db.prepare("SELECT id FROM usuario WHERE perfil = 'admin' ORDER BY id LIMIT 1").get() as { id: number } | undefined)?.id ?? null;
+    const aviso = db.prepare("INSERT INTO aviso (titulo, texto, criado_em, expira_em, fixado, autor_id) VALUES (?, ?, ?, ?, ?, ?)");
+    aviso.run(
+      "Horário especial no feriado",
+      "No próximo feriado a academia abre das 8h às 14h. As aulas coletivas da tarde não acontecem nesse dia.",
+      `${addDias(hoje, -2)} 09:00:00`, addDias(hoje, 12), 1, autor,
+    );
+    aviso.run(
+      "Nova aula: Abdômen express",
+      "De segunda a sexta, às 12h15, 20 minutos de abdômen na Sala 1. Reserve sua vaga pelo portal, na aba Aulas.",
+      `${addDias(hoje, -5)} 10:30:00`, null, 0, autor,
+    );
+    aviso.run(
+      "Manutenção das esteiras",
+      "As esteiras 3 e 4 passam por manutenção nesta semana. Use as bicicletas e o elíptico enquanto isso.",
+      `${addDias(hoje, -1)} 07:15:00`, addDias(hoje, 5), 0, autor,
+    );
+  }
+
+  // Cargas anotadas pelo aluno de demonstração: evolução nas últimas 6 semanas até a carga da ficha.
+  if (demo && !db.prepare("SELECT 1 FROM carga_registro WHERE aluno_id = ?").get(demo.id)) {
+    const itens = db
+      .prepare(
+        `SELECT fi.exercicio_id, fi.carga_kg, fi.repeticoes FROM ficha_item fi JOIN ficha f ON f.id = fi.ficha_id
+         WHERE f.aluno_id = ? AND fi.carga_kg IS NOT NULL`,
+      )
+      .all(demo.id) as { exercicio_id: number; carga_kg: number; repeticoes: string }[];
+    const anotar = db.prepare("INSERT OR IGNORE INTO carga_registro (aluno_id, exercicio_id, data, carga_kg, repeticoes) VALUES (?, ?, ?, ?, ?)");
+    for (const item of itens) {
+      const reps = Number(/\d+/.exec(item.repeticoes)?.[0]) || null;
+      for (let semana = 5; semana >= 0; semana--) {
+        const carga = Math.max(2.5, item.carga_kg - semana * 2.5 + (rng() < 0.3 ? -2.5 : 0));
+        anotar.run(demo.id, item.exercicio_id, addDias(hoje, -semana * 7 - 1), carga, reps);
+      }
+    }
+  }
+}
+
+/** Senha do aluno de demonstração no portal. */
+export const SENHA_ALUNO_DEMO = "aluno123";
+
+/**
+ * Prepara o portal do aluno com dados de demonstração (chamado no seed e na migração para a versão 3):
+ * explica os exercícios conhecidos, define os dias de cada ficha, escolhe um aluno de demonstração com
+ * senha e marca alguns treinos como concluídos para ele. Não mexe no que já foi preenchido.
+ */
+export function prepararPortalDemo(db: Database.Database): void {
+  const hoje = hojeISO();
+
+  // Exercícios sem explicação: completa com o catálogo (pelo nome).
+  const completar = db.prepare(
+    `UPDATE exercicio SET descricao = @descricao, execucao = @execucao, dicas = @dicas,
+       musculos_primarios = @musculos_primarios, musculos_secundarios = @musculos_secundarios
+     WHERE id = @id AND descricao = '' AND musculos_primarios = ''`,
+  );
+  for (const e of db.prepare("SELECT id, nome FROM exercicio").all() as { id: number; nome: string }[]) {
+    const info = colunasDoCatalogo(e.nome);
+    if (info) completar.run({ ...info, id: e.id });
+  }
+
+  // Dias da semana das fichas (só para alunos em que nenhuma ficha tem dia definido).
+  const PADRAO: Record<number, string[]> = {
+    1: ["0,2,4"],
+    2: ["0,2,4", "1,3"],
+    3: ["0,3", "1,4", "2,5"],
+    4: ["0", "1", "3", "4"],
+    5: ["0", "1", "2", "3", "4"],
+  };
+  const fichas = db.prepare("SELECT id, aluno_id, dias FROM ficha ORDER BY aluno_id, letra").all() as { id: number; aluno_id: number; dias: string }[];
+  const definirDias = db.prepare("UPDATE ficha SET dias = ? WHERE id = ?");
+  const porAluno = new Map<number, typeof fichas>();
+  for (const f of fichas) porAluno.set(f.aluno_id, [...(porAluno.get(f.aluno_id) ?? []), f]);
+  for (const lista of porAluno.values()) {
+    if (lista.some((f) => f.dias !== "")) continue;
+    lista.forEach((f, i) => definirDias.run(PADRAO[lista.length]?.[i] ?? "", f.id));
+  }
+
+  // Aluno de demonstração: ativo, em dia, com 3 fichas e avaliações (o primeiro que servir).
+  if (db.prepare("SELECT 1 FROM aluno WHERE senha_hash IS NOT NULL").get()) return;
+  const demo = db
+    .prepare(
+      `SELECT a.id, a.email FROM aluno a
+       WHERE a.ativo = 1
+         AND (SELECT COUNT(*) FROM ficha f WHERE f.aluno_id = a.id) >= 3
+         AND (SELECT COUNT(*) FROM avaliacao av WHERE av.aluno_id = a.id) >= 2
+         AND EXISTS (SELECT 1 FROM matricula m WHERE m.aluno_id = a.id AND m.cancelada_em IS NULL AND m.inicio <= @hoje AND m.fim >= @hoje)
+         AND NOT EXISTS (SELECT 1 FROM pagamento pg JOIN matricula m ON m.id = pg.matricula_id
+                         WHERE m.aluno_id = a.id AND pg.pago_em IS NULL AND pg.vencimento < @hoje)
+       ORDER BY a.id LIMIT 1`,
+    )
+    .get({ hoje }) as { id: number; email: string } | undefined;
+  if (!demo) return;
+  db.prepare("UPDATE aluno SET senha_hash = ? WHERE id = ?").run(hashPassword(SENHA_ALUNO_DEMO), demo.id);
+  db.prepare(
+    "INSERT INTO config (chave, valor) VALUES ('aluno_demo_email', ?) ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor",
+  ).run(demo.email);
+
+  // Treinos concluídos: cada entrada dos últimos 60 dias vira o treino da ficha daquele dia da semana.
+  const daSemana = new Map<number, string>();
+  const fichasDemo = db.prepare("SELECT letra, dias FROM ficha WHERE aluno_id = ? ORDER BY letra").all(demo.id) as { letra: string; dias: string }[];
+  for (const f of fichasDemo) {
+    for (const d of f.dias.split(",").filter(Boolean)) if (!daSemana.has(Number(d))) daSemana.set(Number(d), f.letra);
+  }
+  const letras = fichasDemo.map((f) => f.letra);
+  const marcar = db.prepare("INSERT OR IGNORE INTO treino_feito (aluno_id, data, letra) VALUES (?, ?, ?)");
+  const presencas = db.prepare("SELECT data FROM presenca WHERE aluno_id = ? AND data >= ? AND data < ? ORDER BY data").all(demo.id, addDias(hoje, -60), hoje) as { data: string }[];
+  presencas.forEach(({ data }, i) => marcar.run(demo.id, data, daSemana.get(diaDaSemana(data)) ?? letras[i % letras.length]));
 }

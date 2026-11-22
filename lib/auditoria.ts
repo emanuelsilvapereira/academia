@@ -38,6 +38,9 @@ export const ENTIDADE_ROTULO: Record<string, string> = {
   config: "Configuração",
   sessao: "Sessão",
   relatorio: "Relatório",
+  portal: "Portal do aluno",
+  aula: "Aula coletiva",
+  aviso: "Aviso",
 };
 
 export function auditar(

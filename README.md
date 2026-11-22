@@ -19,15 +19,37 @@ frequência e equipe**. Projeto da disciplina de desenvolvimento de sistemas (SE
 - **Perfil do aluno**: dados, carteirinha com **QR code**, matrícula atual e histórico, parcelas (receber/estornar),
   resumo do treino, mapa de frequência e evolução física.
 
+### Portal do aluno (`/aluno`)
+- Área separada para o aluno, pensada para o celular: **primeiro acesso** com CPF + data de nascimento do cadastro,
+  depois e-mail + senha (com o mesmo bloqueio de tentativas da equipe).
+- **Início**: treino de hoje, rotina da semana, próxima mensalidade, dias até o fim do plano, treinos no mês e **conquistas**.
+- **Meu treino**: fichas com séries, repetições, carga e descanso; rotina por dia da semana; botão **"Concluí a ficha"**.
+- **Exercícios**: biblioteca com **animação da execução** (fotos sem som, no mesmo padrão), explicação do que trabalha, passo a passo, dicas e **mapa do
+  corpo com os músculos** principais e auxiliares (filtros por grupo, músculo e "só os do meu treino").
+- **Modelo anatômico detalhado** (frente e costas, masculino e feminino, claro e escuro) na aba Exercícios: tocar num
+  músculo mostra os exercícios que trabalham ele. Ilustração e áreas da biblioteca
+  [js-rich-body-highlighter](https://github.com/crmapache/js-rich-body-highlighter) (licença MIT).
+- **Aulas coletivas**: grade dos próximos 7 dias com vagas livres; reservar e cancelar (limite de vagas, sem conflito de horário).
+- **Pagar com Pix**: QR code e "copia e cola" gerados para cada parcela; o aluno toca em "Já fiz o Pix" e a recepção confere.
+- **Avisos da academia** na tela inicial e **registro de carga** em cada exercício, com gráfico de evolução de força.
+- **Instalável no celular** (app web): ícone próprio e abertura em tela cheia, direto no portal.
+- **Mensalidade** (parcelas em aberto e pagas), **Plano** (período, renovação, comparação de planos), **Frequência**,
+  **Evolução** (gráficos e IMC), **Carteirinha** em tela cheia e **Perfil** (troca de senha).
+- O aluno só vê os próprios dados; a sessão do aluno não abre as telas da equipe.
+
 ### Matrículas e pagamentos
 - Matrícula liga aluno ↔ plano com **início, fim e renovação automática** opcional.
 - Cada matrícula gera **parcelas mensais** que somam exatamente o valor do plano.
 - Renovar (a nova matrícula começa no dia seguinte ao fim da atual), cancelar e ligar/desligar a renovação automática.
-- Tela **Financeiro**: inadimplência, vencimentos próximos e pagamentos recebidos por mês.
+- Tela **Financeiro**: inadimplência, vencimentos próximos, pagamentos recebidos por mês e **Pix a conferir**
+  (o que os alunos avisaram que pagaram), além da configuração da chave Pix da academia.
+- **Aulas coletivas** (equipe): grade semanal, vagas, sala, instrutor e lista de reservados de cada aula.
+- **Avisos**: a recepção publica avisos (com data para sair e opção de fixar) que aparecem no portal.
 
 ### Treinos
 - **Cadastro de exercícios** (grupo muscular e equipamento).
-- **Fichas A/B/C/D/E** por aluno, com séries, repetições, carga, descanso e ordem dos exercícios.
+- Exercícios com **vídeo** (link do YouTube ou .mp4), descrição, passo a passo, dicas e músculos trabalhados.
+- **Fichas A/B/C/D/E** por aluno, com séries, repetições, carga, descanso, ordem dos exercícios e **dias da semana**.
 - **Avaliação física** (peso, altura, % de gordura, medidas) com IMC e **gráficos de evolução**.
 
 ### Frequência
@@ -79,7 +101,8 @@ npm run dev
 Abra <http://localhost:3000>.
 
 Na **primeira execução** o sistema cria sozinho o banco (`data/pulso.db`), as tabelas e os dados fictícios.
-Se existir um banco da versão anterior, ele é guardado como `data/pulso.v1.bak.db` e um novo é criado.
+Bancos das versões 2 a 5 são atualizados sozinhos para a versão 6, sem perder dados. Um banco da versão 1 é guardado como
+`data/pulso.v1.bak.db` e um novo é criado.
 
 ### Logins de demonstração
 
@@ -88,6 +111,7 @@ Se existir um banco da versão anterior, ele é guardado como `data/pulso.v1.bak
 | Administrador | `admin@pulso.com` | `admin123` | Tudo, inclusive usuários, planos e auditoria |
 | Recepção | `recepcao@pulso.com` | `recepcao123` | Alunos, financeiro, check-in e relatórios |
 | Instrutor | `instrutor@pulso.com` | `instrutor123` | Check-in, treinos, exercícios e avaliações |
+| Aluno (portal) | aparece na tela `/aluno/entrar` | `aluno123` | Área do aluno: treino, exercícios, mensalidade, plano... |
 
 ### Outros comandos
 
@@ -178,6 +202,12 @@ docs/                    modelo do banco e roteiro da apresentação
 - Pagamentos são registrados manualmente (não há integração com banco, Pix ou cartão).
 - O check-in pela câmera depende do navegador ter `BarcodeDetector`.
 - O "desfazer" vale por 5 minutos depois da exclusão.
+- A execução de cada exercício é mostrada por um **GIF** que alterna duas fotos (posição inicial e final), sem som,
+  todos no mesmo estilo. Os GIFs foram gerados com o ffmpeg a partir das fotos. As fotos são do [Free Exercise DB](https://github.com/yuhonas/free-exercise-db), de **domínio público**
+  (licença Unlicense), e ficam em `public/exercicios/<exercício>/` (`0.jpg`, `1.jpg` e `animacao.gif`). O Burpee não existe nesse banco e fica sem animação.
+  A equipe ainda pode colar um vídeo (YouTube ou .mp4) em Exercícios → Editar.
+- O Pix é um "copia e cola" estático: o sistema não sabe sozinho que o dinheiro caiu (não há integração com banco).
+  A recepção confere o extrato e registra. Na demonstração a chave Pix é fictícia; troque em Financeiro → Pix.
 
 ## Uso de IA
 

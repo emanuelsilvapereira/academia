@@ -1,8 +1,8 @@
-# Modelo do banco de dados (versão 2)
+# Modelo do banco de dados (versão 6)
 
 Banco: **SQLite** (arquivo `data/pulso.db`). O SQL completo está em [`../db/schema.sql`](../db/schema.sql) e é
-executado automaticamente ao abrir o banco. A versão fica em `PRAGMA user_version = 2`; se o sistema encontrar um banco
-da versão 1, ele o guarda como `data/pulso.v1.bak.db` e cria um novo.
+executado automaticamente ao abrir o banco. A versão fica em `PRAGMA user_version = 6`. Bancos das versões 2 a 5 são atualizados no lugar
+(`ALTER TABLE ... ADD COLUMN`, sem perder dados); um da versão 1 é guardado como `data/pulso.v1.bak.db` e um novo é criado.
 
 Convenções: datas em texto `AAAA-MM-DD`, horas `HH:MM:SS` (fuso de São Paulo), **dinheiro em centavos** (inteiro,
 para não ter erro de arredondamento), CPF e telefone **só com números** (a formatação é feita na tela).
@@ -19,6 +19,13 @@ erDiagram
     FICHA ||--o{ FICHA_ITEM : "contém"
     EXERCICIO ||--o{ FICHA_ITEM : "aparece em"
     ALUNO ||--o{ AVALIACAO : "passa por"
+    ALUNO ||--o{ TREINO_FEITO : "conclui"
+    ALUNO ||--o{ CARGA_REGISTRO : "anota"
+    EXERCICIO ||--o{ CARGA_REGISTRO : "tem"
+    AULA ||--o{ AULA_RESERVA : "recebe"
+    ALUNO ||--o{ AULA_RESERVA : "faz"
+    INSTRUTOR |o--o{ AULA : "dá"
+    USUARIO |o--o{ AVISO : "publica"
     INSTRUTOR |o--o{ ALUNO : "acompanha"
     INSTRUTOR |o--o{ FICHA : "monta"
     INSTRUTOR |o--o{ AVALIACAO : "faz"
@@ -129,6 +136,42 @@ erDiagram
         TEXT entidade
         TEXT descricao
     }
+    AULA {
+        INTEGER id PK
+        TEXT nome
+        INTEGER dia_semana
+        TEXT hora
+        INTEGER duracao_min
+        INTEGER vagas
+        INTEGER instrutor_id FK
+    }
+    AULA_RESERVA {
+        INTEGER id PK
+        INTEGER aula_id FK
+        INTEGER aluno_id FK
+        TEXT data
+    }
+    CARGA_REGISTRO {
+        INTEGER id PK
+        INTEGER aluno_id FK
+        INTEGER exercicio_id FK
+        TEXT data
+        REAL carga_kg
+    }
+    AVISO {
+        INTEGER id PK
+        TEXT titulo
+        TEXT texto
+        TEXT expira_em
+        INTEGER fixado
+        INTEGER autor_id FK
+    }
+    TREINO_FEITO {
+        INTEGER id PK
+        INTEGER aluno_id FK
+        TEXT data
+        TEXT letra
+    }
     LIXEIRA {
         INTEGER id PK
         TEXT entidade
@@ -181,6 +224,7 @@ Assim nunca há um "status" desatualizado: basta registrar o pagamento e o aluno
 | ativo | INTEGER | 1 = frequenta, 0 = saiu (cadastro mantido) |
 | codigo | TEXT | **Único**, texto do QR code da carteirinha (ex.: `PUL-ZTNGJV`) |
 | cadastro | TEXT | Data do cadastro |
+| senha_hash | TEXT | Senha do portal do aluno (hash scrypt). Vazia = ainda não fez o primeiro acesso |
 
 ### plano
 
@@ -214,6 +258,7 @@ Assim nunca há um "status" desatualizado: basta registrar o pagamento e o aluno
 | vencimento | TEXT | AAAA-MM-DD |
 | pago_em | TEXT | Vazio enquanto não pago |
 | forma | TEXT | `pix`, `cartao`, `dinheiro` ou `boleto`. **Obrigatória se e somente se** houver `pago_em` |
+| informado_em | TEXT | Quando o aluno avisou pelo portal que pagou por Pix (a recepção confere e registra) |
 
 ### presenca
 
@@ -245,6 +290,12 @@ Assim nunca há um "status" desatualizado: basta registrar o pagamento e o aluno
 | nome | TEXT | **Único**, 3 a 60 caracteres |
 | grupo | TEXT | peito, costas, ombros, biceps, triceps, pernas, gluteos, abdomen, cardio ou corpo_todo |
 | equipamento | TEXT | 2 a 40 caracteres |
+| descricao | TEXT | O que o exercício trabalha (até 400 caracteres) |
+| execucao | TEXT | Passo a passo, um passo por linha |
+| dicas | TEXT | Dicas e erros comuns, um por linha |
+| musculos_primarios / musculos_secundarios | TEXT | Ids dos músculos separados por vírgula (lista em `lib/musculos.ts`) |
+| video_url | TEXT | Link do YouTube ou de um arquivo .mp4/.webm (validado no servidor; só https). Opcional |
+| animacao | TEXT | Pasta das fotos da animação em `public/exercicios/<pasta>/` (0.jpg e 1.jpg) |
 
 ### ficha e ficha_item
 
@@ -254,6 +305,7 @@ Assim nunca há um "status" desatualizado: basta registrar o pagamento e o aluno
 | ficha.letra | TEXT | A a E; `(aluno_id, letra)` **única** |
 | ficha.objetivo | TEXT | Até 60 caracteres |
 | ficha.instrutor_id | INTEGER | FK opcional, `ON DELETE SET NULL` |
+| ficha.dias | TEXT | Dias da semana da ficha (0 = segunda ... 6 = domingo), ex.: `0,3`. Vazio = sem dia fixo |
 | ficha_item.ficha_id | INTEGER | FK `ficha(id)`, `ON DELETE CASCADE` |
 | ficha_item.exercicio_id | INTEGER | FK `exercicio(id)`, `ON DELETE RESTRICT` |
 | ficha_item.ordem | INTEGER | Posição do exercício na ficha |
@@ -271,6 +323,46 @@ Assim nunca há um "status" desatualizado: basta registrar o pagamento e o aluno
 | cintura_cm, quadril_cm, braco_cm, coxa_cm | REAL | Opcionais, com faixas de valores válidos |
 | instrutor_id | INTEGER | FK opcional, `ON DELETE SET NULL` |
 
+### treino_feito
+
+| Coluna | Tipo | Regras |
+|---|---|---|
+| aluno_id | INTEGER | FK `aluno(id)`, `ON DELETE CASCADE` |
+| data | TEXT | Dia em que o aluno marcou o treino como concluído no portal |
+| letra | TEXT | Letra da ficha (copiada, para o histórico não mudar se a ficha for refeita); `(aluno_id, data, letra)` **única** |
+
+### aula e aula_reserva
+
+| Coluna | Tipo | Regras |
+|---|---|---|
+| aula.nome | TEXT | 3 a 40 caracteres |
+| aula.dia_semana / hora | INTEGER / TEXT | 0 = segunda ... 6 = domingo; `HH:MM`. Uma linha por dia e horário da grade |
+| aula.duracao_min / vagas | INTEGER | 15 a 180 minutos; 1 a 200 vagas |
+| aula.instrutor_id | INTEGER | FK opcional, `ON DELETE SET NULL` |
+| aula.ativo | INTEGER | 0 = some do portal (as reservas antigas ficam) |
+| aula_reserva.aula_id / aluno_id | INTEGER | FKs com `ON DELETE CASCADE`; `(aula_id, data, aluno_id)` **única** |
+| aula_reserva.data | TEXT | Data da aula reservada |
+
+O limite de vagas e o conflito de horário são conferidos numa transação `BEGIN IMMEDIATE` (`lib/aulas.ts`): duas
+pessoas tentando a última vaga ao mesmo tempo não passam do limite.
+
+### carga_registro
+
+| Coluna | Tipo | Regras |
+|---|---|---|
+| aluno_id / exercicio_id | INTEGER | FKs com `ON DELETE CASCADE`; `(aluno_id, exercicio_id, data)` **única** (anotar de novo no dia substitui) |
+| carga_kg | REAL | 0 a 500 |
+| repeticoes | INTEGER | Opcional, 1 a 100 |
+
+### aviso
+
+| Coluna | Tipo | Regras |
+|---|---|---|
+| titulo / texto | TEXT | 3 a 80 / 3 a 600 caracteres |
+| expira_em | TEXT | Opcional: depois desse dia o aviso some do portal |
+| fixado | INTEGER | 1 = aparece primeiro |
+| autor_id | INTEGER | FK `usuario(id)`, `ON DELETE SET NULL` |
+
 ### usuario
 
 | Coluna | Tipo | Regras |
@@ -286,7 +378,7 @@ Assim nunca há um "status" desatualizado: basta registrar o pagamento e o aluno
 
 | Tabela | Para que serve |
 |---|---|
-| `config` | Chave/valor, ex.: `capacidade_maxima` da academia (lotação) |
+| `config` | Chave/valor: `capacidade_maxima` (lotação), `pix_chave`, `pix_nome`, `pix_cidade` (Pix da academia) |
 | `login_tentativa` | E-mail, IP, horário e se deu certo. Usada no bloqueio: 5 erros por e-mail ou 20 por IP em 15 minutos |
 | `auditoria` | Quem fez o quê e quando. O e-mail é copiado, então o registro não se perde se o usuário for excluído |
 | `lixeira` | Antes de excluir, o registro e tudo que depende dele vão em JSON para cá; "Desfazer" recoloca as linhas com os mesmos ids (até 5 minutos) |
@@ -297,7 +389,7 @@ Assim nunca há um "status" desatualizado: basta registrar o pagamento e o aluno
 |---|---|---|
 | Excluir um plano já usado em matrícula | **Bloqueado** | `ON DELETE RESTRICT` |
 | Excluir um exercício que está em alguma ficha | **Bloqueado** | `ON DELETE RESTRICT` |
-| Excluir um aluno | Matrículas, parcelas, presenças, fichas e avaliações saem **junto** | `ON DELETE CASCADE` |
+| Excluir um aluno | Matrículas, parcelas, presenças, fichas, avaliações e treinos concluídos saem **junto** | `ON DELETE CASCADE` |
 | Excluir um instrutor | Alunos, fichas e avaliações ficam sem instrutor (não são apagados) | `ON DELETE SET NULL` |
 | E-mail ou CPF repetido | Bloqueado | `UNIQUE` |
 | Duas entradas do mesmo aluno no mesmo dia | Bloqueado | `UNIQUE (aluno_id, data)` |

@@ -9,7 +9,7 @@ export default async function NovoExercicioPage() {
     <>
       <Cabecalho titulo="Novo exercício" />
       <div className="panel form-page">
-        <ExercicioForm acao={criarExercicio} inicial={{ nome: "", grupo: "peito", equipamento: "" }} />
+        <ExercicioForm acao={criarExercicio} inicial={{ nome: "", grupo: "peito", equipamento: "", descricao: "", execucao: "", dicas: "", musculos_primarios: "", musculos_secundarios: "", video_url: "" }} />
       </div>
     </>
   );
